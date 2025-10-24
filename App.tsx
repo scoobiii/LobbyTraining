@@ -1,11 +1,9 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { TopicCard } from './components/TopicCard';
 import { TOPICS_DATA } from './constants';
 import { generateContentPlan, generateTopicImage, generateSpeechFromText } from './services/geminiService';
-import { Topic } from './types';
+import { Topic, StoredBriefing } from './types';
 import { BrainIcon } from './components/icons/BrainIcon';
-import { AudioIcon } from './components/icons/AudioIcon';
 import { PlayIcon } from './components/icons/PlayIcon';
 import { PauseIcon } from './components/icons/PauseIcon';
 
@@ -23,7 +21,7 @@ const App: React.FC = () => {
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState<string | null>(null);
   
-  const [completedTopics, setCompletedTopics] = useState<number[]>([]);
+  const [storedBriefings, setStoredBriefings] = useState<{ [id: number]: StoredBriefing }>({});
   
   // Audio state
   const [isAudioLoading, setIsAudioLoading] = useState<boolean>(false);
@@ -32,12 +30,37 @@ const App: React.FC = () => {
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
 
-
+  // Load stored briefings from localStorage on initial mount & initialize AudioContext
   useEffect(() => {
+    try {
+      const storedData = localStorage.getItem('storedBriefings');
+      if (storedData) {
+        const parsedBriefings = JSON.parse(storedData);
+        setStoredBriefings(parsedBriefings);
+      }
+    } catch (error) {
+      console.error("Failed to parse stored briefings from localStorage", error);
+      localStorage.removeItem('storedBriefings'); // Clear corrupted data
+    }
+    
     if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
   }, []);
+
+  // Save stored briefings to localStorage whenever the state changes
+  useEffect(() => {
+    try {
+      // Only save if there's something to save to avoid empty entries
+      if (Object.keys(storedBriefings).length > 0) {
+        localStorage.setItem('storedBriefings', JSON.stringify(storedBriefings));
+      }
+    } catch (error) {
+      console.error("Failed to save briefings to localStorage", error);
+    }
+  }, [storedBriefings]);
+  
+  const completedTopics = Object.keys(storedBriefings).map(Number);
 
   const handleGenerateClick = useCallback(async (topic: Topic) => {
     setSelectedTopic(topic);
@@ -49,26 +72,35 @@ const App: React.FC = () => {
     setIsAudioPlaying(false);
 
     const loadingMessages = [
-        'Gerando material visual...',
-        'Analisando dados geopolíticos para o roteiro...',
-        'Criando imagem para o briefing...',
+        'Processando diretivas...',
+        'Consultando fontes de inteligência...',
+        'Compilando dados...',
+        'Renderizando recursos...'
     ];
     let messageIndex = 0;
-    setLoadingStep(loadingMessages[0]);
     const intervalId = setInterval(() => {
-        messageIndex = (messageIndex + 1) % loadingMessages.length;
         setLoadingStep(loadingMessages[messageIndex]);
-    }, 3000);
+        messageIndex = (messageIndex + 1) % loadingMessages.length;
+    }, 2500);
 
     try {
-      const planPromise = generateContentPlan(topic);
-      const imagePromise = generateTopicImage(topic);
-
-      const [plan, imageUrl] = await Promise.all([planPromise, imagePromise]);
-
+      setLoadingStep('Gerando plano de conteúdo detalhado...');
+      const plan = await generateContentPlan(topic);
       setGeneratedPlan(plan);
-      setGeneratedImageUrl(imageUrl);
-      setCompletedTopics(prev => [...new Set([...prev, topic.id])]);
+
+      let imageUrl: string | null = null;
+      try {
+        setLoadingStep('Criando material visual para o briefing...');
+        imageUrl = await generateTopicImage(topic);
+        setGeneratedImageUrl(imageUrl);
+      } catch (imageErr) {
+        console.error("Falha ao gerar a imagem, mas o plano foi criado:", imageErr);
+        setGeneratedImageUrl(null); 
+      }
+
+      // Save the complete briefing
+      const newBriefing: StoredBriefing = { plan, imageUrl };
+      setStoredBriefings(prev => ({ ...prev, [topic.id]: newBriefing }));
 
     } catch (err: any) {
       setError('Falha ao gerar o briefing. A inteligência inimiga pode estar interferindo. Tente novamente.');
@@ -80,29 +112,38 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const handleViewClick = useCallback((topic: Topic) => {
+    const briefing = storedBriefings[topic.id];
+    if (briefing) {
+        setSelectedTopic(topic);
+        setGeneratedPlan(briefing.plan);
+        setGeneratedImageUrl(briefing.imageUrl);
+        // Reset audio state for the new content
+        audioBufferRef.current = null;
+        setIsAudioPlaying(false);
+    }
+  }, [storedBriefings]);
+
   const handleAudioPlayback = async () => {
     if (!generatedPlan || !audioContextRef.current) return;
     
-    // If audio is playing, pause it
     if (isAudioPlaying) {
       audioSourceRef.current?.stop();
       setIsAudioPlaying(false);
       return;
     }
 
-    // If audio is paused, resume it
     if (audioBufferRef.current) {
         playAudio(audioBufferRef.current);
         return;
     }
     
-    // If audio not loaded, load and play it
     setIsAudioLoading(true);
     try {
       const audioBuffer = await generateSpeechFromText(generatedPlan, audioContextRef.current);
       audioBufferRef.current = audioBuffer;
       playAudio(audioBuffer);
-    } catch (err) {
+    } catch (err: any) {
       setError('Falha ao sintetizar o áudio do briefing.');
       console.error(err);
     } finally {
@@ -120,7 +161,7 @@ const App: React.FC = () => {
       source.connect(audioContextRef.current.destination);
       source.onended = () => {
           setIsAudioPlaying(false);
-          audioSourceRef.current = null; // Allow re-play
+          audioSourceRef.current = null;
       };
       source.start(0);
       audioSourceRef.current = source;
@@ -158,7 +199,13 @@ const App: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
           {TOPICS_DATA.map((topic) => (
-            <TopicCard key={topic.id} topic={topic} onGenerateClick={handleGenerateClick} isCompleted={completedTopics.includes(topic.id)} />
+            <TopicCard 
+              key={topic.id} 
+              topic={topic} 
+              onGenerateClick={handleGenerateClick}
+              onViewClick={handleViewClick}
+              isCompleted={completedTopics.includes(topic.id)} 
+            />
           ))}
         </div>
       </main>
@@ -195,13 +242,17 @@ const App: React.FC = () => {
               {!isLoading && (generatedPlan || generatedImageUrl) && (
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   <div className="lg:col-span-2">
-                     {generatedImageUrl && (
+                     {generatedImageUrl ? (
                       <div className="mb-4">
                         <img 
                           src={generatedImageUrl} 
                           alt={`Visual conceitual para ${selectedTopic.title}`}
                           className="rounded-lg shadow-lg w-full object-cover aspect-video bg-black"
                         />
+                      </div>
+                    ) : (
+                      <div className="mb-4 aspect-video bg-gray-900 rounded-lg flex items-center justify-center">
+                        <p className="text-gray-500 text-sm">Visual não disponível</p>
                       </div>
                     )}
                     <button onClick={handleAudioPlayback} disabled={isAudioLoading || !generatedPlan} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-3 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed">

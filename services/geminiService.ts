@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
 import { Topic } from '../types';
 
@@ -32,10 +31,7 @@ async function decodeAudioData(
 
 
 const getGenAI = () => {
-  if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set.");
-  }
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 }
 
 export const generateContentPlan = async (topic: Topic): Promise<string> => {

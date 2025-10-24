@@ -8,11 +8,16 @@ import { CheckmarkIcon } from './icons/CheckmarkIcon';
 interface TopicCardProps {
   topic: Topic;
   onGenerateClick: (topic: Topic) => void;
+  onViewClick: (topic: Topic) => void;
   isCompleted: boolean;
 }
 
-export const TopicCard: React.FC<TopicCardProps> = ({ topic, onGenerateClick, isCompleted }) => {
+export const TopicCard: React.FC<TopicCardProps> = ({ topic, onGenerateClick, onViewClick, isCompleted }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const buttonClass = isCompleted 
+    ? "bg-emerald-600 hover:bg-emerald-500 focus:ring-emerald-500"
+    : "bg-cyan-600 hover:bg-cyan-500 focus:ring-cyan-500";
 
   return (
     <div className={`bg-gray-800 border border-gray-700 rounded-xl shadow-lg flex flex-col transition-all duration-300 hover:shadow-cyan-500/20 hover:border-cyan-500/50 ${isCompleted ? 'border-emerald-500/50' : ''}`}>
@@ -26,7 +31,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({ topic, onGenerateClick, is
             {isCompleted && (
                 <span className="text-xs font-bold text-emerald-400 flex items-center gap-1 mt-1">
                     <CheckmarkIcon className="w-4 h-4" />
-                    BRIEFING CONCLUÍDO
+                    BRIEFING ARQUIVADO
                 </span>
             )}
         </div>
@@ -50,11 +55,11 @@ export const TopicCard: React.FC<TopicCardProps> = ({ topic, onGenerateClick, is
 
       <div className="mt-auto p-6 bg-gray-800/50 rounded-b-xl border-t border-gray-700/50">
         <button
-          onClick={() => onGenerateClick(topic)}
-          className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-cyan-500"
+          onClick={() => (isCompleted ? onViewClick(topic) : onGenerateClick(topic))}
+          className={`w-full text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${buttonClass}`}
         >
           <BrainIcon className="w-5 h-5" />
-          Gerar Briefing com IA
+          {isCompleted ? 'Revisar Briefing' : 'Gerar Briefing com IA'}
         </button>
       </div>
     </div>
