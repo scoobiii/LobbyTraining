@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { TopicCard } from './components/TopicCard';
 import { TOPICS_DATA } from './constants';
@@ -21,6 +22,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState<string | null>(null);
+  
   const [completedTopics, setCompletedTopics] = useState<number[]>([]);
   
   // Audio state
@@ -46,11 +48,20 @@ const App: React.FC = () => {
     audioBufferRef.current = null;
     setIsAudioPlaying(false);
 
-    try {
-      setLoadingStep('Gerando briefing da missão...');
-      const planPromise = generateContentPlan(topic);
+    const loadingMessages = [
+        'Gerando material visual...',
+        'Analisando dados geopolíticos para o roteiro...',
+        'Criando imagem para o briefing...',
+    ];
+    let messageIndex = 0;
+    setLoadingStep(loadingMessages[0]);
+    const intervalId = setInterval(() => {
+        messageIndex = (messageIndex + 1) % loadingMessages.length;
+        setLoadingStep(loadingMessages[messageIndex]);
+    }, 3000);
 
-      setLoadingStep('Criando material visual...');
+    try {
+      const planPromise = generateContentPlan(topic);
       const imagePromise = generateTopicImage(topic);
 
       const [plan, imageUrl] = await Promise.all([planPromise, imagePromise]);
@@ -59,10 +70,11 @@ const App: React.FC = () => {
       setGeneratedImageUrl(imageUrl);
       setCompletedTopics(prev => [...new Set([...prev, topic.id])]);
 
-    } catch (err) {
+    } catch (err: any) {
       setError('Falha ao gerar o briefing. A inteligência inimiga pode estar interferindo. Tente novamente.');
       console.error(err);
     } finally {
+      clearInterval(intervalId);
       setIsLoading(false);
       setLoadingStep('');
     }
@@ -185,10 +197,14 @@ const App: React.FC = () => {
                   <div className="lg:col-span-2">
                      {generatedImageUrl && (
                       <div className="mb-4">
-                        <img src={generatedImageUrl} alt={`Arte conceitual para ${selectedTopic.title}`} className="rounded-lg shadow-lg w-full object-cover aspect-video" />
+                        <img 
+                          src={generatedImageUrl} 
+                          alt={`Visual conceitual para ${selectedTopic.title}`}
+                          className="rounded-lg shadow-lg w-full object-cover aspect-video bg-black"
+                        />
                       </div>
                     )}
-                    <button onClick={handleAudioPlayback} disabled={isAudioLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-3 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed">
+                    <button onClick={handleAudioPlayback} disabled={isAudioLoading || !generatedPlan} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-3 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed">
                       {isAudioLoading ? (
                         <>
                           <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

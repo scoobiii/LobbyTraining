@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality } from "@google/genai";
 import { Topic } from '../types';
 
@@ -85,13 +86,15 @@ export const generateContentPlan = async (topic: Topic): Promise<string> => {
 
 export const generateTopicImage = async (topic: Topic): Promise<string> => {
     const ai = getGenAI();
-    const prompt = `Crie uma arte conceitual dramática e investigativa para um documentário de geopolítica com o tema: "${topic.title}". Use um estilo de thriller de espionagem, com cores escuras, contrastes fortes e elementos simbólicos como mapas, documentos sigilosos, e silhuetas. A imagem deve ser cinematográfica e instigante.`;
+    const prompt = `Crie uma imagem dramática e investigativa para um documentário de geopolítica com o tema: "${topic.title}". Use um estilo de thriller de espionagem, com cores escuras, contrastes fortes e elementos simbólicos como mapas, documentos sigilosos e silhuetas. A imagem deve ser cinematográfica e instigante.`;
 
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
-                parts: [{ text: prompt }],
+                parts: [
+                    { text: prompt },
+                ],
             },
             config: {
                 responseModalities: [Modality.IMAGE],
@@ -101,13 +104,16 @@ export const generateTopicImage = async (topic: Topic): Promise<string> => {
         for (const part of response.candidates[0].content.parts) {
             if (part.inlineData) {
                 const base64ImageBytes: string = part.inlineData.data;
-                return `data:image/png;base64,${base64ImageBytes}`;
+                const mimeType = part.inlineData.mimeType;
+                return `data:${mimeType};base64,${base64ImageBytes}`;
             }
         }
+        
         throw new Error("Nenhuma imagem foi gerada.");
+
     } catch (error) {
         console.error("Error calling Gemini API for image generation:", error);
-        throw new Error("Failed to generate topic image from Gemini API.");
+        throw new Error("Failed to generate image from Gemini API.");
     }
 };
 
